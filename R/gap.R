@@ -1,11 +1,10 @@
-#' @title Read Observer Data
+#' @title GAP Data
 #'
-#' @description Read observer data from GAP Oracle database or local SAS-format files.
+#' @description Read observer data from GAP Oracle database. The GAP data is the data repository for all observer
+#'              data for the Quebec and Gulf region. Methods for creating a \sQuote{gap} object which represents
+#'              observer data from the GAP database.
 #'
-#' The GAP data is the data repository for all observer data for the Atlantic region.
-#'
-#' Older observer data (1987-1995) are stored locally in \sQuote{sas7bdat} file formats.
-#'
+#' @param x A \sQuote{gap} object.
 #' @param year A scalar value specifying the data year to be returned. The default is the current year.
 #' @param username Character string specifying name of the user.
 #' @param password Character string specifying user password.
@@ -14,28 +13,23 @@
 #' @param raw A logical value specifying whether to keep the GAP format for each table. The default value is \code{FALSE}.
 #' @param print A logical value specifying whether to print messages to the R console while the tables are being loaded.
 #' @param useRfile A logical value specifying whether to load the local \code{R} version of the GAP rather than query the GAP database itself.
-#' @param list() Further arguments passed onto the \code{\link[gulf]{subset.gap}} function.
+#' @param gear A character vector of fishing gear codes.
+#' @param species.caught A numeric vector of species codes. These correspond to the species which was actually caught.
+#' @param target.species A numeric vector of target species codes. These correspond to the species targetted by the fishing activity.
+#' @param nafo.division A character vector of NAFO division (e.g. \sQuote{4T}) codes.
+#' @param nafo.area A character vector of NAFO area (e.g. \sQuote{4Tf}) codes.
+#' @param trip.number A character vector of trip numbers (e.g. \sQuote{Q14501}).
+#' @param expedition.number A character vector of expedition numbers (e.g. \sQuote{Q14501A01}).
+#' @param activity.number A character vector of activity numbers (e.g. \sQuote{Q14501A01025}).
+#' @param sentinel A logical value specifying whether to include ONLY sentinel catches or to exclude sentinel
+#'                 catches from the output result. This only includes southern Gulf sentinel surveys. See the
+#'                 Examples section and the \code{\link[gulf]{is.sentinel}} function for further details.
+#' @param by A character vector specifying the variables by which to group the analysis.
+#' @param scale A logical value specifying whether to scale the observed frequencies by the sampling ratio. The default is \code{TRUE}.
+#' @param sort A logical value specifying whether the result is to be sorted using the variables in the \code{by} argument. The default is \code{TRUE}.
+#' @param ... Further arguments by which to subset the \sQuote{gap} object. This may be any variable in any GAP table.
 #'
-#' @return A \sQuote{gap} object, a list with nine elements, each a data frame containing observer data at various sampling levels.
-#'
-#' Table 1 is a fishing activity comments table.
-#'
-#' Table 2 is a fishing activity table, indexed by an activity number.
-#'
-#' Table 3 is a total catch for each fishing activity, indexed by an expedition number.
-#'
-#' Table 4 is an observer table.
-#'
-#' Table 5 is a catch and length-frequency index table.
-#'
-#' Table 6 is a fishing activity catch table.
-#'
-#' Table 7 is a sample description table.
-#'
-#' Table 8 is an otolith sample number table.
-#'
-#' Table 9 is a length-frequency table.
-#'
+
 #' @examples
 #' # Extract yellowtail data for 2013:
 #' x <- read.gap(year = 2013, species = 42)
@@ -47,38 +41,85 @@
 #' layout(matrix(1:2))
 #' dbarplot(f[1, 2:dim(f)[2]], main = "Females")
 #' dbarplot(f[2, 2:dim(f)[2]], main = "Males")
+#'
+#' # Isolate yellowtail and winter flounder data from 4T in 2015:
+#' x <- read.gap(year = 2015)
+#' x <- subset(x, species = c(10, 42, 43), nafo.area = "4T")
+#' print(x)  # Display object:
+#'
+#' # Target particular sample of expedition or activity:
+#' y <- subset(x, species = 10, expedition.number = "Q15047K01")
+#' y <- subset(x, species = 10, activity.number = "Q15047K01013")
+#'
+#' # Extract American plaice sentinel observer data for 2014 for NAFO 4T:
+#' x <- read.gap(year = 2014)
+#' y <- subset(x, sentinel = TRUE, nafo.area = "4T", species = 40)
+#' y <- subset(x, sentinel = FALSE, nafo.area = "4T", species = 40)
+#' y <- subset(y, sentinel = TRUE, gulf = FALSE, quebec = TRUE)
+#'
+#' # Isolate Quebec region observer catches.
+#' y <- subset(x, sentinel = TRUE, gulf = TRUE, quebec = FALSE, mobile = TRUE, fixed = FALSE) # Only sGSL mobile.
+#'
+#' # Extract yellowtail data for 2013:
+#' x <- read.gap(year = 2013, species = 42)
+#'
+#' # Calculate length-frequecy table by sex and scale for sampling ratio:
+#' f <- freq(x, by = "sex", scale = TRUE)
+#'
+#' # Display results:
+#' layout(matrix(1:2))
+#' dbarplot(f[1, 2:dim(f)[2]], main = "Females")
+#' dbarplot(f[2, 2:dim(f)[2]], main = "Males")
+#'
+#' # Convert to user-friendly format:
+#' y <- convert(x)
+#'
+#' # Fetch 2013 data:
+#' update.gap(2013)
+#'
+#' # Store 2013 data in working directory:
+#' update.gap(2013, path = getwd())
+#'
+#' # Update for multiple years:
+#' update.gap(2008:2013)
+#'
+#' @section GAP Tables
+#'   Table 1 is a fishing activity comments table.
+#'   Table 2 is a fishing activity table, indexed by an activity number.
+#'   Table 3 is a total catch for each fishing activity, indexed by an expedition number.
+#'   Table 4 is an observer table.
+#'   Table 5 is a catch and length-frequency index table.
+#'   Table 6 is a fishing activity catch table.
+#'   Table 7 is a sample description table
+#'   Table 8 is an otolith sample number table.
+#'   Table 9 is a length-frequency table.
+#'
+#' @section GAP table index keys
+#'   Table 1 : No key.
+#'   Table 2 : 'activity number'
+#'   Table 3 : 'expedition.number'
+#'   Table 4 : 'trip.number'
+#'   Table 5 : 'lf.number'
+#'   Table 6 : 'catch.number'
+#'   Table 7 : 'lf.number'
+#'   Table 8 : 'lf.number.long'
+#'   Table 9 : 'lf.number.long'
 
-
-#' Create a \sQuote{gap} Object.
-#'
-#' Methods for creating a \sQuote{gap} object which represents observer data
-#' from the GAP database.
-#'
-#'
-#' @aliases gap gap.default
-#' @param x A data frame object.
-#' @param list() Further parameters to be passed onto other methods.
-#' @return Returns a \sQuote{gap} object.
-#' @seealso \code{\link[gulf]{gap Class}}
-#' @examples
-#'
-#'
-#'
+#' @return A \sQuote{gap} object, a list with nine elements, each a data frame containing observer data at various sampling levels.
 
 #' @export
 gap <- function(x, ...) UseMethod("gap")
 
-# GAP.DEFAULT - Create a 'gap' object.
+#' @describeIn gap Create a 'gap' object.
 #' @export
 gap.default <- function(x, ...){
    if (!("gap" %in% class(x))) class(x) <- c("gap", class(x))
-
    return(x)
 }
 
-# READ.GAP - Read tables from GAP Oracle database.
+#' @describeIn gap Read tables from GAP Oracle database.
 #' @export read.gap
-read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password = .gap.oracle$generic.pass,
+read.gap <- function(year, username = .gap.oracle$generic.user, password = .gap.oracle$generic.pass,
                      schema = .gap.oracle$generic.schema, raw = FALSE, print = TRUE, useRfile = TRUE, ...){
 
    # Set 'useRfile' to FALSE if oracle arguments are used:
@@ -92,7 +133,7 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
    }
 
    # Define default parameter values:
-   if (is.null(year)) year <- as.numeric(substr(Sys.Date(), 1, 4))
+   if (missing(year)) year <- as.numeric(substr(Sys.Date(), 1, 4))
    if (print) cat(paste("Reading data for", year, "\n"))
 
    if (year %in% c(1987:1995)){
@@ -242,7 +283,7 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
 
       # Catch table:
       query[3] <- paste("
-      select     sem.no_voy   as no_voy,
+      select    sem.no_voy   as no_voy,
                 sem.no_affec as no_affec,
                 sem.no_sorti as no_sortie,
                 rpad(ltrim(rtrim(aff.bpc)),10,' ') as no_bpc_prob,
@@ -253,27 +294,27 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
                                               ,rpad(ltrim(rtrim(comm.df_comm)),30,' '))
                                               ,rpad(ltrim(rtrim(d_port)),30,' ')) as d_port,
                 decode(sem.no_relev           ,null     ,'     '   ,lpad(no_relev,5,' ')) as no_relev
-     from       prob_sortie          sem,
+      from      prob_sortie          sem,
                 prob_affect          aff,
-           ( select    sem.no_voy||sem.no_affec||sem.no_sorti cle
-               from      prob_sortie                   sem,
-                         prob_affect                   aff,
-                         prob_acti_poi                 act
-               where     sem.no_voy                  = act.no_voy      and
-                         sem.no_affec                = act.no_affec         and
-                         sem.no_sorti                = act.no_sorti        and
-                         act.typ_acti                in ('PF','SQ','SG','SL') and
-                         aff.no_voy                  = act.no_voy      and
-                         aff.no_affec                = act.no_affec
-               group by  sem.no_voy||sem.no_affec||sem.no_sorti
+      (select   sem.no_voy||sem.no_affec||sem.no_sorti cle
+                 from      prob_sortie                   sem,
+                           prob_affect                   aff,
+                           prob_acti_poi                 act
+                 where     sem.no_voy                  = act.no_voy      and
+                           sem.no_affec                = act.no_affec         and
+                           sem.no_sorti                = act.no_sorti        and
+                           act.typ_acti                in ('PF','SQ','SG','SL') and
+                           aff.no_voy                  = act.no_voy      and
+                           aff.no_affec                = act.no_affec
+                 group by  sem.no_voy||sem.no_affec||sem.no_sorti
                UNION
                select    sem.no_voy||sem.no_affec||sem.no_sorti cle
                from      prob_sortie                   sem,
                          prob_affect                   aff,
                          prob_acti_cas                 act
                where     sem.no_voy                  = act.no_voy      and
-                         sem.no_affec                = act.no_affec         and
-                         sem.no_sorti                = act.no_sorti        and
+                         sem.no_affec                = act.no_affec    and
+                         sem.no_sorti                = act.no_sorti    and
                          aff.no_voy                  = act.no_voy      and
                          aff.no_affec                = act.no_affec
                group by  sem.no_voy||sem.no_affec||sem.no_sorti
@@ -295,8 +336,9 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
                         "2001 = comm.an_comm(+)
      order by cle ;", sep = "")
 
-      query= gsub("\n","",query)
+      query = gsub("\n", "", query)
       if (print) cat("  Reading catch table (")
+
       x[[3]] <- oracle.query(channel = channel, query = query[3])
       if (!raw){
          names(x[[3]]) <- tolower(names(x[[3]]))
@@ -578,7 +620,6 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
       oracle.close(channel)
    }
 
-
    # Add 'gap' class identifier if 'raw' is FALSE:
    if (!raw) x <- gap(x)
 
@@ -588,10 +629,9 @@ read.gap <- function(year = NULL, username = .gap.oracle$generic.user, password 
    return(x)
 }
 
+#' @describeIn gap Scale observer length-frequencies by sample to total weights ratios.
 #' @export
 adjust.gap <- function(x, correct.weight.sampled = TRUE, by, ...){
-   # ADJUST.GAP - Adjust observed length-frequencies.
-
    # Define commercial length card index key:
    key <- c("species", "catch.number")
    if (!missing(by)) key <- unique(c(by, key))
@@ -637,10 +677,9 @@ adjust.gap <- function(x, correct.weight.sampled = TRUE, by, ...){
    return(x)
 }
 
-#' @export
+#' @describeIn gap Calculate catch-at-length for a 'gap' object.
+#' @rawNamespace S3method(catch.at.length,gap)
 catch.at.length.gap <- function(x, by, landings, adjust = TRUE, ...){
-   # CATCH.AT.LENGTH - Calculate catch-at-length for a 'gap' object.
-
    # Parse 'by' argument:
    if (!missing(by)) by.old <- by else by.old <- NULL
    by <- unique(c("year", "species", "expedition.number", "activity.number", by.old))
@@ -663,39 +702,10 @@ catch.at.length.gap <- function(x, by, landings, adjust = TRUE, ...){
 
    return(w)
 }
-#' Convert GAP Objects
-#'
-#' Convert a \sQuote{gap} object to a user-friendly format.
-#'
-#'
-#' @param x A \sQuote{gap} object.
-#' @return Returns list with four data frames, each one representing successive
-#' levels of at-sea observer data : an \sQuote{expedition}, \sQuote{activity},
-#' \sQuote{catch} and \sQuote{length}.
-#' @seealso \code{\link[gulf]{gap Class}}
-#' @keywords IO
-#' @examples
-#'
-#'     # Extract yellowtail data for 2013:
-#'     x <- read.gap(year = 2013, species = 42)
-#'
-#'    # Convert 'x':
-#'    y <- convert(x)
-#'
+
 #' @export
 convert.gap <- function(x, correct.weight.sampled = TRUE, ...){
    # CONVERT.GAP - Convert 'gap' object to user-friendly format.
-
-   # Table index keys:
-   #   Table 1 : No key.
-   #   Table 2 : 'activity number'
-   #   Table 3 : 'expedition.number'
-   #   Table 4 : 'trip.number'
-   #   Table 5 : 'lf.number'
-   #   Table 6 : 'catch.number'
-   #   Table 7 : 'lf.number'
-   #   Table 8 : 'lf.number.long'
-   #   Table 9 : 'lf.number.long'
 
    # Complete index keys:
    x[[7]] <- merge(x[[7]], x[[5]], by = "lf.number", names = "catch.number", all.x = TRUE)
@@ -773,41 +783,7 @@ convert.gap <- function(x, correct.weight.sampled = TRUE, ...){
    return(v)
 }
 
-
-#' Length-Frequencies for a \sQuote{gap} Object
-#'
-#' Return the total observed or sampling-ratio adjusted length frequecies for a
-#' \sQuote{gap} object.
-#'
-#'
-#' @param x A \sQuote{gap} object.
-#' @param by A character vector specifying the variables by which to group the
-#' analysis.
-#' @param scale A logical value specifying whether to scale the observed
-#' frequencies by the sampling ratio. The default is \code{TRUE}.
-#' @param sort A logical value specifying whether the result is to be sorted
-#' using the variables in the \code{by} argument. The default is \code{TRUE}.
-#' @param list() Further arguments passed on to the
-#' \code{\link[gulf]{subset.gap}} function.
-#' @return If \sQuote{by} is left unspecified, then a \sQuote{table} object is
-#' returned.  If \sQuote{by} is specified, then a data frame object containing
-#' the length frequencies is returned. The leading columns of the data frame
-#' contain the values of the grouping variables specified by the \sQuote{by}
-#' argument.
-#' @seealso \code{\link[gulf]{gap Class}}
-#' @examples
-#'
-#'     # Extract yellowtail data for 2013:
-#'     x <- read.gap(year = 2013, species = 42)
-#'
-#'     # Calculate length-frequecy table by sex and scale for sampling ratio:
-#'     f <- freq(x, by = "sex", scale = TRUE)
-#'
-#'     # Display results:
-#'     layout(matrix(1:2))
-#'     dbarplot(f[1, 2:dim(f)[2]], main = "Females")
-#'     dbarplot(f[2, 2:dim(f)[2]], main = "Males")
-#'
+#' @describeIn gap Return the total observed or sampling-ratio adjusted length frequecies for a \sQuote{gap} object.
 #' @export
 freq.gap <- function(x, by, scale = FALSE, sort = TRUE, na.action, ...){
    # FREQ.GAP - Length-frequency values for a 'gap' object.
@@ -904,28 +880,9 @@ freq.gap <- function(x, by, scale = FALSE, sort = TRUE, na.action, ...){
    return(r)
 }
 
-
-
-#' \sQuote{gap} Object Print Method
-#'
-#' Prints summary information about a \sQuote{gap} object to the \code{R}
-#' console.
-#'
-#'
-#' @param x An \sQuote{gap} object.
-#' @return No value is returned.
-#' @seealso \code{\link[gulf]{gap Class}}
-#' @examples
-#'
-#'    # Read GAP data for 2013 (input proper credentials):
-#'    x <- read.gap(username = "MORINR", schema = "MORINR", password = "XXXXXX", year = 2013)
-#'
-#'    # Display object:
-#'    print(x)
-#'
+#' @describeIn gap Display summary information about a 'gap' object on the R console.
+#' @export
 print.gap <- function(x){
-   # PRINT.GAP - Display a 'gap' object to the R console.
-
    # Function to generate properly formatted strings:
    bracket <- function(v){
       if (is.numeric(v)) v <- sort(v)
@@ -956,49 +913,10 @@ print.gap <- function(x){
    cat(paste("   Samples          :", length(unique(x[[7]]$lf.number)), "\n"))
    cat(paste("   Fish sampled     :", sum(x[[9]]$number.fish), "\n\n"))
 }
-#' Subset of a \sQuote{gap} Object
-#'
-#' Returns a subset of a \sQuote{gap} object.
-#'
-#'
-#' @param x A \sQuote{gap} object.
-#' @param gear A character vector of fishing gear codes.
-#' @param species.caught A numeric vector of species codes. These correspond to the species which was actually caught.
-#' @param target.species A numeric vector of target species codes. These correspond to the species targetted by the fishing activity.
-#' @param nafo.division A character vector of NAFO division (e.g. \sQuote{4T}) codes.
-#' @param nafo.area A character vector of NAFO area (e.g. \sQuote{4Tf}) codes.
-#' @param trip.number A character vector of trip numbers (e.g. \sQuote{Q14501}).
-#' @param expedition.number A character vector of expedition numbers (e.g. \sQuote{Q14501A01}).
-#' @param activity.number A character vector of activity numbers (e.g. \sQuote{Q14501A01025}).
-#' @param sentinel A logical value specifying whether to include ONLY sentinel catches or to exclude sentinel
-#'                 catches from the output result. This only includes southern Gulf sentinel surveys. See the
-#'                 Examples section and the \code{\link[gulf]{is.sentinel}} function for further details.
-#' @param list() Further arguments by which to subset the \sQuote{gap} object. This may be any variable in any GAP table.
-#'
-#' @return A subset of an \sQuote{gap} object is returned.
-#'
-#' @examples
-#' # Isolate yellowtail and winter flounder data from 4T in 2013:
-#' x <- read.gap(year = 2015)
-#' x <- subset(x, species = c(10, 42, 43), nafo.area = "4T")
-#' print(x)  # Display object:
-#'
-#' # Target particular sample of expedition or activity:
-#' y <- subset(x, species = 10, expedition.number = "Q15047K01")
-#' y <- subset(x, species = 10, activity.number = "Q15047K01013")
-#'
-#' # Extract American plaice sentinel observer data for 2014 for NAFO 4T:
-#' x <- read.gap(year = 2014)
-#' y <- subset(x, sentinel = TRUE, nafo.area = "4T", species = 40)
-#' y <- subset(x, sentinel = FALSE, nafo.area = "4T", species = 40)
-#' y <- subset(y, sentinel = TRUE, gulf = FALSE, quebec = TRUE)
-#'
-#' # Isolate Quebec region observer catches.
-#' y <- subset(x, sentinel = TRUE, gulf = TRUE, quebec = FALSE, mobile = TRUE, fixed = FALSE) # Only sGSL mobile.
-#'
+
+#' @describeIn gap Return a subset of a 'gap' dataset.
 #' @export
-subset.gap <- function(x, gear, species.caught, target.species, nafo.division, nafo.subdivision,
-                       trip.number, expedition.number, activity.number, sentinel, ...){
+subset.gap <- function(x, gear, species.caught, target.species, nafo.division, nafo.subdivision, trip.number, expedition.number, activity.number, sentinel, ...){
    # SUBSET.GAP - Subset of a 'gap' object.
 
    # Parse 'sentinel' agument:
@@ -1092,44 +1010,8 @@ subset.gap <- function(x, gear, species.caught, target.species, nafo.division, n
    return(x)
 }
 
-
-
-#' Update GAP Database
-#'
-#' Queries the GAP observer database and updates locally-stored \code{R}
-#' versions of the data.
-#'
-#' The GAP data is the data repository for all observer data for the Atlantic
-#' region.
-#'
-#' A user must have write access to the local observer database so that this
-#' function can create a local version of the GAP database.
-#'
-#' @param year A scalar value specifying the data year to be returned. The
-#' default is the current year.
-#' @param path A character string specifying the path where the \code{R}
-#' versions of the GAP data are to be stored. If not specified, the default
-#' observer path (\code{.gulf.path$obs}) is used.
-#' @param username Character string specifying name of the user.
-#' @param password Character string specifying user password.
-#' @param schema Character string specifying Oracle schema.
-#' @param print A logical value specifying whether to print messages to the R
-#' console while the tables are being loaded.  The default value is
-#' \code{TRUE}.
-#' @return No value is returned.
-#' @seealso \code{\link[gulf]{gap Class}}, \code{\link[gulf]{read.gap}}
-#' @examples
-#'
-#'     # Fetch 2013 data:
-#'     update.gap(2013)
-#'
-#'     # Store 2013 data in working directory:
-#'     update.gap(2013, path = getwd())
-#'
-#'     # Update a number of years:
-#'     update.gap(2008:2013)
-#'
-#' @export update.gap
+#' @describeIn gap Queries the GAP observer database and updates locally-stored \code{R} versions of the data.
+#' @export
 update.gap <- function(year, path, ...){
    # UPDATE.GAP - Update GAP data and create R-readable versions.
 
@@ -1151,10 +1033,9 @@ update.gap <- function(year, path, ...){
    }
 }
 
+#' @describeIn gap Summary of a 'gap' object.
 #' @export
 summary.gap <- function(x){
-   # SUMMARY.GAP - Summary of a 'gap' object.
-
    y <- convert(x)
 
    vars <- c("gear", "month")
@@ -1165,4 +1046,3 @@ summary.gap <- function(x){
    print(res)
    invisible(res)
 }
-
